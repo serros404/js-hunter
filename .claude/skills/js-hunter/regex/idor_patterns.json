@@ -1,0 +1,42 @@
+{
+  "numeric_id_in_path": {
+    "pattern": "/(?:users?|accounts?|orders?|items?|records?|profiles?|documents?|docs?|files?|invoices?|tickets?|projects?|orgs?|organizations?|customers?|clients?|members?|employees?|products?|transactions?)/\\d+",
+    "risk": "HIGH",
+    "reason": "Numeric ID directly in path — classic IDOR surface"
+  },
+  "uuid_in_path": {
+    "pattern": "/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
+    "risk": "HIGH",
+    "reason": "UUID in path — may be guessable or enumerable via other leaks"
+  },
+  "id_query_param": {
+    "pattern": "[?&](?:id|user_id|userId|account_id|accountId|order_id|orderId|doc_id|docId|file_id|fileId|item_id|itemId|record_id|recordId|customer_id|customerId|profile_id|profileId)=[\\w-]+",
+    "risk": "HIGH",
+    "reason": "Direct object reference via query parameter"
+  },
+  "action_with_numeric_id": {
+    "pattern": "/(?:download|export|view|get|fetch|read|show|open|delete|remove|edit|update|modify)/\\d+",
+    "risk": "HIGH",
+    "reason": "Action endpoint with sequential numeric ID — enumerable"
+  },
+  "nested_resource_id": {
+    "pattern": "/(?:users?|accounts?|orgs?)/[\\w-]+/(?:users?|accounts?|orders?|files?|documents?|settings?)/[\\w-]+",
+    "risk": "HIGH",
+    "reason": "Nested resource — horizontal privilege escalation risk"
+  },
+  "base64_id_param": {
+    "pattern": "[?&][a-zA-Z_]*(?:id|ref|key|token)=[A-Za-z0-9+/]{16,}={0,2}(?:&|$|\")",
+    "risk": "MEDIUM",
+    "reason": "Possible base64-encoded object reference — obscured but not protected"
+  },
+  "hash_id_param": {
+    "pattern": "[?&][a-zA-Z_]*(?:id|ref|key)=[a-f0-9]{24,}(?:&|$|\")",
+    "risk": "MEDIUM",
+    "reason": "Possible MongoDB ObjectId or hash-based ID"
+  },
+  "idor_template_literal": {
+    "pattern": "`[^`]*(?:/users?/|/accounts?/|/orders?/|/files?/)\\$\\{[^}]+\\}[^`]*`",
+    "risk": "HIGH",
+    "reason": "Template literal building URL with object reference — definite IDOR surface"
+  }
+}

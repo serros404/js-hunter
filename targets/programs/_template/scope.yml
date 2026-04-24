@@ -1,0 +1,45 @@
+# =============================================================================
+# TEMPLATE DE SCOPE — copie esta pasta para targets/programs/<nome-do-programa>/
+# e preencha os campos abaixo.
+# =============================================================================
+
+program: "Nome do Programa"
+platform: "HackerOne"          # HackerOne | BugCrowd | Intigriti | YesWeHack | Private
+handle: "nome-do-programa"     # identificador único (usado no nome da pasta de output)
+
+in_scope:
+  domains:
+    # Wildcard: cobre SUBDOMÍNIOS (sub.exemplo.com), NÃO o root (exemplo.com)
+    - "*.exemplo.com"
+
+    # Domínio raiz explícito (precisa estar listado separadamente)
+    - "exemplo.com"
+
+    # Domínio específico de outro TLD
+    - "exemplo.net"
+
+    # Subdomínio específico
+    - "app.exemplo.io"
+
+out_of_scope:
+  domains:
+    # Exclusão explícita dentro de um wildcard
+    - "blog.exemplo.com"
+    - "status.exemplo.com"
+    - "cdn.exemplo.com"
+
+    # Sub-wildcard excluído
+    - "*.cdn.exemplo.com"
+
+  paths:
+    # Paths excluídos em qualquer domínio in-scope
+    # Suporta glob: /admin/* exclui /admin/users, /admin/config, etc.
+    - "/wp-admin/*"
+    - "/phpmyadmin/*"
+
+metadata:
+  last_updated: "YYYY-MM-DD"
+  notes: ""
+  max_severity: "Critical"     # Critical | High | Medium | Low
+  vdp_only: false               # true = Vulnerability Disclosure Program (sem bounty)
+  safe_harbor: true             # o programa oferece safe harbor?

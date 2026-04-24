@@ -1,0 +1,31 @@
+# Ambiente de desenvolvimento com OWASP Juice Shop para testes locais.
+# Uso: docker compose -f docker/docker-compose.dev.yml up juice-shop -d
+#      docker compose -f docker/docker-compose.dev.yml run js-hunter \
+#        --target localhost:3000 --mode moderate --no-scope-check
+services:
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: juice-shop
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  js-hunter:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: js-hunter:latest
+    volumes:
+      - ../output:/output
+      - ../targets:/targets:ro
+    environment:
+      - TARGET=${TARGET:-localhost:3000}
+      - PROGRAM=${PROGRAM:-}
+      - MODE=${MODE:-moderate}
+      - ENUMERATE_SUBS=${ENUMERATE_SUBS:-false}
+      - NO_SCOPE_CHECK=${NO_SCOPE_CHECK:-true}
+      - COOKIE=${COOKIE:-}
+      - AUTH_HEADER=${AUTH_HEADER:-}
+    shm_size: "512mb"
+    depends_on:
+      - juice-shop

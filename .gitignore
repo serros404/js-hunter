@@ -1,0 +1,32 @@
+# Outputs de recon — nunca commitar
+output/
+
+# Programas e scopes reais — só o template vai no repo
+targets/programs/*/
+!targets/programs/_template/
+
+# Cookies, tokens, credenciais
+*.cookie
+*.token
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Docker cache
+docker/.docker-cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code — configuração local do ambiente
+.claude/settings.local.json
+
+# Editor
+.vscode/settings.json
+.idea/

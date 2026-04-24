@@ -1,0 +1,103 @@
+# js-hunter Report
+
+**Gerado em:** {{ generated_at }}
+**Alvo:** {{ program or target }}
+**Modo:** {{ mode }}
+
+---
+
+## Sumário
+
+| Severity | Endpoints | Secrets | DOM Sinks |
+|----------|-----------|---------|-----------|
+| CRITICAL | {{ findings.endpoints.critical | length }} | {{ findings.secrets | selectattr('risk', 'equalto', 'CRITICAL') | list | length }} | — |
+| HIGH     | {{ findings.endpoints.high | length }} | {{ findings.secrets | selectattr('risk', 'equalto', 'HIGH') | list | length }} | — |
+| MEDIUM   | {{ findings.endpoints.medium | length }} | — | {{ findings.dom_sinks | length }} |
+| LOW      | {{ findings.endpoints.low | length }} | — | — |
+
+---
+
+{% if findings.secrets %}
+## Secrets Detectados
+
+> Verificar manualmente antes de reportar — pode conter falsos positivos.
+
+{% for s in findings.secrets | sort(attribute='risk') %}
+### [{{ s.risk }}] {{ s.detector }}
+- **Verificado pelo trufflehog:** {{ 'Sim' if s.verified else 'Não' }}
+- **JS Source:** `{{ s.source_js }}`
+
+{% endfor %}
+---
+{% endif %}
+
+{% if findings.endpoints.critical %}
+## Endpoints CRITICAL (score ≥ 5)
+
+{% for ep in findings.endpoints.critical %}
+### `{{ ep.endpoint }}`
+- **Score:** {{ ep.score }}
+- **Source JS:** `{{ ep.source_js }}`
+- **Aparece em:** {{ ep.source_count }} arquivo(s)
+{% if ep.minified %}- **Atenção:** JS minificado — contexto limitado{% endif %}
+- **Patterns:**
+{% for m in ep.matches %}
+  - `{{ m.pattern }}` ({{ m.risk }}) — {{ m.reason }}
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+{% if findings.endpoints.high %}
+## Endpoints HIGH (score 3-4)
+
+{% for ep in findings.endpoints.high %}
+### `{{ ep.endpoint }}`
+- **Score:** {{ ep.score }} | **Source:** `{{ ep.source_js }}`
+{% if ep.minified %}- **Minificado:** Sim{% endif %}
+- **Patterns:** {% for m in ep.matches %}`{{ m.pattern }}`{% if not loop.last %}, {% endif %}{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+{% if findings.endpoints.medium %}
+## Endpoints MEDIUM (score 1-2)
+
+| Endpoint | Score | Source JS | Patterns |
+|----------|-------|-----------|----------|
+{% for ep in findings.endpoints.medium %}
+| `{{ ep.endpoint[:80] }}{% if ep.endpoint | length > 80 %}...{% endif %}` | {{ ep.score }} | `{{ ep.source_js | replace('https://', '') | replace('http://', '') | truncate(40) }}` | {% for m in ep.matches %}`{{ m.pattern }}`{% if not loop.last %}, {% endif %}{% endfor %} |
+{% endfor %}
+
+{% endif %}
+
+{% if findings.dom_sinks %}
+## DOM Sinks Detectados
+
+> Referência para análise manual de XSS — fora do escopo IDOR/BAC mas relevante.
+
+| Sink | JS Source | Linha | Contexto |
+|------|-----------|-------|---------|
+{% for s in findings.dom_sinks[:30] %}
+| `{{ s.sink }}` | `{{ s.source_js | replace('https://', '') | replace('http://', '') | truncate(40) }}` | {{ s.line }} | `{{ s.context[:60] }}...` |
+{% endfor %}
+{% if findings.dom_sinks | length > 30 %}
+*({{ findings.dom_sinks | length - 30 }} sinks adicionais em findings.json)*
+{% endif %}
+
+{% endif %}
+
+---
+
+## Próximos Passos (Análise Manual)
+
+1. Importar `burp_import.txt` no Burp Suite via Target > Site Map > Load URLs
+2. Priorizar endpoints CRITICAL com ID numérico — testar com ID de outro usuário
+3. Verificar endpoints de role/permission — tentar acesso sem privilégio adequado
+4. Para endpoints com método DELETE/PUT/PATCH — checar se o server valida ownership
+5. Secrets detectados — validar se são ativos antes de reportar
+
+## Referências Out-of-Scope
+
+Ver arquivo `out_of_scope_refs.txt` — referências encontradas no JS mas que apontam
+para domínios fora do scope. Intel passivo, não verificado ativamente.

@@ -1,0 +1,73 @@
+{
+  "direct_html_write": [
+    "innerHTML",
+    "outerHTML",
+    "insertAdjacentHTML",
+    "document.write(",
+    "document.writeln("
+  ],
+  "eval_like": [
+    "eval(",
+    "new Function(",
+    "setTimeout(\"",
+    "setTimeout('",
+    "setInterval(\"",
+    "setInterval('",
+    "execScript("
+  ],
+  "location_manipulation": [
+    "location.href",
+    "location.assign(",
+    "location.replace(",
+    "location.search",
+    "location.hash",
+    "window.open("
+  ],
+  "jquery_sinks": [
+    ".html(",
+    ".append(",
+    ".prepend(",
+    ".after(",
+    ".before(",
+    ".wrap(",
+    "$(\"<",
+    "$('<"
+  ],
+  "postmessage": [
+    "postMessage(",
+    "addEventListener(\"message\"",
+    "addEventListener('message'"
+  ],
+  "storage_read": [
+    "localStorage.getItem(",
+    "sessionStorage.getItem(",
+    "document.cookie"
+  ],
+  "third_party_excludes": [
+    "googleapis.com",
+    "gstatic.com",
+    "google-analytics.com",
+    "googletagmanager.com",
+    "stripe.com",
+    "stripecdn.com",
+    "facebook.net",
+    "fbcdn.net",
+    "twitter.com",
+    "twimg.com",
+    "hotjar.com",
+    "intercom.io",
+    "hubspot.com",
+    "cloudflare.com",
+    "jquery.com",
+    "bootstrapcdn.com",
+    "cdnjs.cloudflare.com",
+    "jsdelivr.net",
+    "unpkg.com",
+    "sentry.io",
+    "amplitude.com",
+    "segment.com",
+    "mixpanel.com",
+    "fullstory.com",
+    "datadog-browser-agent.com"
+  ]
+}

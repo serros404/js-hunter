@@ -1,0 +1,21 @@
+services:
+  js-hunter:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: js-hunter:latest
+    container_name: js-hunter
+    volumes:
+      - ../output:/output
+      - ../targets:/targets:ro
+    environment:
+      - TARGET=${TARGET:-}
+      - PROGRAM=${PROGRAM:-}
+      - MODE=${MODE:-moderate}
+      - ENUMERATE_SUBS=${ENUMERATE_SUBS:-false}
+      - NO_SCOPE_CHECK=${NO_SCOPE_CHECK:-false}
+      - COOKIE=${COOKIE:-}
+      - AUTH_HEADER=${AUTH_HEADER:-}
+    network_mode: host
+    # Permite katana headless (Chromium precisa de /dev/shm adequado)
+    shm_size: "512mb"

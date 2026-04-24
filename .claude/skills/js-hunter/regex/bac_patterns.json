@@ -1,0 +1,57 @@
+{
+  "admin_path": {
+    "pattern": "/(?:admin|administrator|administration|superuser|su|root|sysadmin)/",
+    "risk": "HIGH",
+    "reason": "Admin panel path exposed in client-side JS"
+  },
+  "internal_api": {
+    "pattern": "/(?:internal|private|restricted|staff|employee|backoffice|back-office|ops|operations|management)/",
+    "risk": "HIGH",
+    "reason": "Internal API referenced in public JS — likely missing auth check"
+  },
+  "role_permission_mutation": {
+    "pattern": "/(?:users?|accounts?|members?)/[^/\"'\\s]+/(?:role|permission|access|privilege|grant|revoke|promote|demote|ban|suspend|disable|enable|activate|deactivate|verify|unverify)",
+    "risk": "HIGH",
+    "reason": "Role or permission mutation endpoint — BAC if not server-side validated"
+  },
+  "delete_user_resource": {
+    "pattern": "(?:DELETE|delete)[^\"'\\n]{0,80}/(?:users?|accounts?|members?)/[\\w-]+",
+    "risk": "HIGH",
+    "reason": "DELETE on user/account resource — missing authz check = account takeover"
+  },
+  "http_method_sensitive": {
+    "pattern": "(?:method|type)\\s*:\\s*[\"'](?:DELETE|PUT|PATCH)[\"']",
+    "risk": "HIGH",
+    "reason": "Mutating HTTP method identified in JS — check for authz on server"
+  },
+  "bulk_operation": {
+    "pattern": "/(?:bulk|batch|mass)/(?:delete|update|edit|modify|assign|remove)",
+    "risk": "HIGH",
+    "reason": "Bulk mutation endpoint — frequently lacks per-item authorization"
+  },
+  "impersonation": {
+    "pattern": "/(?:impersonate|act-as|switch-user|assume|proxy-as)/",
+    "risk": "HIGH",
+    "reason": "Impersonation endpoint — critical if accessible without proper authz"
+  },
+  "sensitive_config": {
+    "pattern": "/(?:config|configuration|settings?|preferences?|env|environment)/",
+    "risk": "MEDIUM",
+    "reason": "Config endpoint — may expose or accept sensitive values without authz"
+  },
+  "user_management": {
+    "pattern": "/(?:users?|accounts?|members?)/(?:create|invite|register|add|signup|onboard)",
+    "risk": "MEDIUM",
+    "reason": "User creation endpoint — check if requires admin role"
+  },
+  "export_endpoint": {
+    "pattern": "/(?:export|download|dump|extract|report)/(?:users?|accounts?|data|logs?|audit)",
+    "risk": "MEDIUM",
+    "reason": "Data export endpoint — BAC if user can export other users' data"
+  },
+  "api_key_management": {
+    "pattern": "/(?:api-?keys?|tokens?|secrets?|credentials?)/(?:create|generate|list|revoke|rotate)",
+    "risk": "MEDIUM",
+    "reason": "Credential management endpoint — authz critical"
+  }
+}
