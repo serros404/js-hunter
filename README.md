@@ -1,73 +1,54 @@
-# js-hunter
+<div align="center">
 
-Pipeline de recon automatizado de arquivos JavaScript para bug bounty, focada em descoberta de vulnerabilidades de **IDOR** (Insecure Direct Object Reference) e **Broken Access Control (BAC)**.
+<h1>js-hunter</h1>
 
-Roda 100% via Docker — sem instalar nenhuma ferramenta localmente.
+<p>JS recon pipeline for IDOR & Broken Access Control bug bounty hunting</p>
 
-> **Uso ético e legal**: use apenas em programas de bug bounty que você está autorizado a testar ou em ambientes de lab locais. Nunca teste alvos sem autorização explícita.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-2496ED?logo=docker&logoColor=white)](docker/Dockerfile)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](docker/Dockerfile)
+[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#)
+
+</div>
 
 ---
 
-## O que faz
+**js-hunter** coleta todos os arquivos `.js` de um alvo, extrai endpoints e secrets hardcoded — incluindo URLs em string literals (o que você faria filtrando por `http`/`https`/`localhost` no DevTools) — e classifica cada finding por risco de IDOR/BAC. Tudo via Docker, sem instalar nada localmente.
 
-Dada uma URL alvo ou um programa com scope definido, o js-hunter:
+> Use apenas em programas de bug bounty nos quais você está autorizado. Nunca teste alvos sem autorização explícita.
 
-1. **Coleta** todas as URLs de arquivos `.js` acessíveis (katana, gau, waybackurls)
-2. **Extrai** endpoints, referências de API e secrets de cada JS (LinkFinder, trufflehog, regex customizado)
-3. **Classifica** cada finding por risco (CRITICAL / HIGH / MEDIUM / LOW) com base em padrões de IDOR/BAC
-4. **Gera** três outputs prontos: relatório Markdown, JSON estruturado e lista de URLs para o Burp Suite
+---
+
+## Features
+
+- **Coleta multi-fonte** — katana (crawler ativo + Chromium headless), gau e waybackurls em paralelo
+- **Extração de hardcoded URLs** — varre string literals por `http://`, `https://` e `localhost:PORT/` (replica filtro do DevTools)
+- **Filtro de ruído** — elimina MIME types, paths de framework Angular/webpack e assets automaticamente
+- **Dedup normalizado** — `/api/users` e `https://target.com/api/users` são tratados como o mesmo endpoint
+- **Scoring IDOR/BAC** — padrões regex para IDs numéricos, UUIDs, template literals, métodos mutantes (DELETE/PUT/PATCH), paths de admin/internal
+- **Detecção de secrets** — trufflehog integrado, verifica automaticamente se o secret está ativo
+- **Scope guard** — valida cada URL contra o `scope.yml` do programa antes de qualquer requisição ativa
+- **3 outputs prontos** — `report.md` priorizado, `findings.json` estruturado, `burp_import.txt` para o Burp Suite
 
 ---
 
 ## Ferramentas incluídas
 
-| Ferramenta | Versão | Função |
-|---|---|---|
-| katana | v1.5.0 | Crawler ativo de JS (suporta headless Chrome) |
-| gau | v2.2.4 | Coleta URLs históricas (AlienVault OTX, Wayback, Common Crawl) |
-| waybackurls | latest | Coleta URLs do Wayback Machine |
-| subfinder | v2.13.0 | Enumeração de subdomínios |
-| httpx | v1.9.0 | Verifica hosts ativos |
-| LinkFinder | latest | Extrai endpoints de arquivos JS |
-| trufflehog | v3.95.2 | Detecta secrets e credenciais expostas |
-
----
-
-## Pré-requisitos
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado e rodando
-- Windows, macOS ou Linux
-
-**Nenhuma dependência local além do Docker.**
+| Ferramenta | Função |
+|---|---|
+| [katana](https://github.com/projectdiscovery/katana) | Crawler ativo de JS (suporta Chromium headless) |
+| [gau](https://github.com/lc/gau) | URLs históricas — AlienVault OTX, Wayback, Common Crawl |
+| [waybackurls](https://github.com/tomnomnom/waybackurls) | URLs do Wayback Machine |
+| [subfinder](https://github.com/projectdiscovery/subfinder) | Enumeração de subdomínios |
+| [httpx](https://github.com/projectdiscovery/httpx) | Verificação de hosts ativos |
+| [LinkFinder](https://github.com/GerbenJavado/LinkFinder) | Extração de endpoints de JS |
+| [trufflehog](https://github.com/trufflesecurity/trufflehog) | Detecção e verificação de secrets |
 
 ---
 
 ## Instalação
 
-```bash
-git clone https://github.com/serros404/js-hunter.git
-cd js-hunter
-docker compose -f docker/docker-compose.yml build
-```
-
-O build leva alguns minutos na primeira vez — baixa e compila todas as ferramentas dentro da imagem.
-
----
-
-## Modos de uso
-
-O js-hunter pode ser usado de duas formas:
-
-| Modo | Requisito | Como funciona |
-|---|---|---|
-| **Standalone (CLI)** | Só Docker | Você digita os comandos manualmente no terminal |
-| **Com Claude Code** | Docker + Claude Code CLI | Você fala em linguagem natural e o Claude monta e executa o comando |
-
----
-
-## Modo Standalone — só Docker, sem Claude
-
-### Instalação
+**Requisito:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ```bash
 git clone https://github.com/serros404/js-hunter.git
@@ -75,432 +56,159 @@ cd js-hunter
 docker compose -f docker/docker-compose.yml build
 ```
 
-### Uso básico
+O build leva alguns minutos na primeira vez — compila todos os Go tools e instala as dependências Python dentro da imagem.
+
+---
+
+## Uso
+
+### Alvo direto
 
 ```bash
-# Alvo direto
 docker compose -f docker/docker-compose.yml run --rm js-hunter \
   --target app.exemplo.com \
   --mode moderate
+```
 
-# Programa de bug bounty com scope configurado
+### Programa de bug bounty com scope
+
+```bash
+# 1. Configure o scope
+cp -r targets/programs/_template targets/programs/meu-programa
+# edite targets/programs/meu-programa/scope.yml
+
+# 2. Rode
 docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --program nome-do-programa \
+  --program meu-programa \
   --mode moderate
+```
 
-# Com cookie de sessão (autenticado)
+### Autenticado (cookie ou Bearer token)
+
+```bash
+# Cookie de sessão
 docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com \
-  --mode moderate \
+  --target app.exemplo.com --mode moderate \
   --cookie "session=abc123; csrf=xyz"
 
-# Com Bearer token
+# Bearer token
 docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com \
-  --mode moderate \
+  --target app.exemplo.com --mode moderate \
   --header "Authorization: Bearer eyJ..."
-
-# Modo passivo (zero contato com o alvo)
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com \
-  --mode passive
-
-# Com enumeração de subdomínios
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --program nome-do-programa \
-  --mode moderate \
-  --enumerate-subs
 ```
 
-### Lab com Juice Shop (standalone)
+### Lab local com OWASP Juice Shop
 
 ```bash
-# Sobe o Juice Shop
 docker compose -f docker/docker-compose.dev.yml up juice-shop -d
-
-# Roda o js-hunter contra ele
 docker compose -f docker/docker-compose.dev.yml run --rm js-hunter \
-  --target juice-shop:3000 \
-  --mode moderate \
-  --no-scope-check
-```
-
-Os resultados ficam em `output/<alvo>/<timestamp>/report.md`.
-
----
-
-## Modo Claude Code — linguagem natural
-
-O Claude Code é o CLI oficial da Anthropic. Com ele instalado, você faz recon conversando — o Claude interpreta o que você quer, monta o comando correto e executa.
-
-### Instalação do Claude Code
-
-```bash
-npm install -g @anthropic-ai/claude-code
-claude
-```
-
-Mais detalhes em [claude.ai/code](https://claude.ai/code).
-
-### Como usar com Claude Code
-
-Com o Claude Code aberto na pasta do projeto, basta digitar em português:
-
-```
-roda js-hunter no app.exemplo.com modo moderate
-```
-
-```
-js-hunter no meu-programa com enum de subs
-```
-
-```
-testa no juice shop
-```
-
-```
-roda agressivo no meu-programa autenticado, cookie session=abc123
-```
-
-```
-js-hunter passivo no exemplo.com
-```
-
-O Claude vai:
-1. Verificar se o Docker está rodando
-2. Verificar se a imagem existe (e buildar se necessário)
-3. Confirmar autorização se for um alvo real
-4. Montar e executar o comando correto
-5. Apresentar o resumo dos findings após a execução
-
-### Exemplos de comandos aceitos pelo Claude
-
-| Você diz | Comando gerado |
-|---|---|
-| `"roda js-hunter no meu-programa"` | `--program meu-programa --mode moderate` |
-| `"js-hunter no app.exemplo.com modo passivo"` | `--target app.exemplo.com --mode passive` |
-| `"roda agressivo com enum de subs no meu-programa"` | `--program meu-programa --mode aggressive --enumerate-subs` |
-| `"autenticado, cookie session=abc"` | adiciona `--cookie "session=abc"` |
-| `"testa no juice shop"` | usa `docker-compose.dev.yml` com `--target juice-shop:3000 --no-scope-check` |
-
----
-
-## Como usar
-
-### Opção 1 — Lab local com OWASP Juice Shop
-
-O Juice Shop já está integrado no projeto. Ideal para testar e aprender antes de usar em alvos reais.
-
-```bash
-# Sobe o Juice Shop
-docker compose -f docker/docker-compose.dev.yml up juice-shop -d
-
-# Roda o js-hunter contra ele
-docker compose -f docker/docker-compose.dev.yml run --rm js-hunter \
-  --target juice-shop:3000 \
-  --mode moderate \
-  --no-scope-check
-```
-
-Acesse `http://localhost:3000` no browser para ver o Juice Shop durante o teste.
-
-### Opção 2 — Alvo direto
-
-```bash
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com \
-  --mode moderate
-```
-
-### Opção 3 — Programa de bug bounty com scope
-
-```bash
-# 1. Configure o scope (veja seção abaixo)
-# 2. Rode:
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --program nome-do-programa \
-  --mode moderate
+  --target juice-shop:3000 --no-scope-check
 ```
 
 ---
 
-## Todos os parâmetros
+## Parâmetros
 
 | Flag | Descrição | Padrão |
 |---|---|---|
-| `--target <host>` | Alvo único (ex: `app.exemplo.com`, `localhost:3000`) | — |
+| `--target <host>` | Alvo direto (`app.exemplo.com`, `localhost:3000`) | — |
 | `--program <nome>` | Programa com scope em `targets/programs/<nome>/scope.yml` | — |
 | `--mode <modo>` | `passive` / `moderate` / `aggressive` | `moderate` |
-| `--enumerate-subs` | Enumera subdomínios antes da coleta (requer `--program` com wildcards no scope) | desativado |
+| `--enumerate-subs` | Enumera subdomínios antes da coleta (requer `--program`) | desativado |
 | `--no-scope-check` | Desativa validação de scope — **apenas em labs locais** | desativado |
 | `--cookie "<valor>"` | Cookie de sessão para testes autenticados | — |
-| `--header "<valor>"` | Header de autenticação (ex: `Authorization: Bearer <token>`) | — |
+| `--header "<valor>"` | Header de autenticação (`Authorization: Bearer <token>`) | — |
 
 ### Modos de operação
 
-| Modo | Ferramentas ativas | Toca o alvo? | Indicado para |
-|---|---|---|---|
-| `passive` | gau + waybackurls | Não | Recon inicial, evitar detecção |
-| `moderate` | katana depth=2 + gau + waybackurls | Sim, baixo impacto | Uso padrão |
-| `aggressive` | katana depth=5 headless + gau + waybackurls | Sim, maior impacto | Alvos com SPA / muito JS dinâmico |
-
----
-
-## Configurando um programa de bug bounty
-
-```bash
-cp -r targets/programs/_template targets/programs/nome-do-programa
-```
-
-Edite `targets/programs/nome-do-programa/scope.yml`:
-
-```yaml
-program: "Nome do Programa"
-platform: "HackerOne"       # HackerOne | BugCrowd | Intigriti | YesWeHack | Private
-handle: "nome-do-programa"
-
-in_scope:
-  domains:
-    - "*.exemplo.com"       # cobre sub.exemplo.com — NÃO cobre exemplo.com
-    - "exemplo.com"         # root precisa ser listado separadamente
-    - "app.exemplo.io"
-
-out_of_scope:
-  domains:
-    - "blog.exemplo.com"
-    - "status.exemplo.com"
-  paths:
-    - "/wp-admin/*"
-
-metadata:
-  last_updated: "2026-04-24"
-  max_severity: "Critical"
-  safe_harbor: true
-```
-
-O scope guard valida **todas** as URLs coletadas contra esse arquivo antes de qualquer requisição ativa. URLs fora do scope são descartadas e salvas em `out_of_scope_refs.txt` como intel passivo.
-
----
-
-## Testes autenticados
-
-**Com cookie de sessão:**
-
-1. Faça login no alvo no browser
-2. Abra DevTools (F12) → aba Network → clique em qualquer requisição autenticada → aba Headers
-3. Copie o valor completo do campo `Cookie:`
-
-```bash
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com \
-  --mode moderate \
-  --cookie "session=abc123; csrf=xyz789"
-```
-
-**Com Bearer token:**
-
-```bash
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com \
-  --mode moderate \
-  --header "Authorization: Bearer eyJ..."
-```
+| Modo | Toca o alvo? | Indicado para |
+|---|---|---|
+| `passive` | Não | Recon inicial, evitar detecção |
+| `moderate` | Sim, baixo impacto | Uso padrão |
+| `aggressive` | Sim, maior impacto | SPAs com muito JS dinâmico |
 
 ---
 
 ## Outputs
 
-Cada execução gera uma pasta com timestamp:
-
 ```
-output/<alvo ou programa>/<YYYY-MM-DD_HHMMSS>/
-├── report.md              ← leia primeiro — findings ordenados por risco
+output/<alvo>/<YYYY-MM-DD_HHMMSS>/
+├── report.md              ← leia aqui — findings ordenados por risco
 ├── findings.json          ← todos os findings estruturados
 ├── burp_import.txt        ← URLs para Burp Suite (Target > Site Map > Load URLs)
 ├── out_of_scope_refs.txt  ← domínios externos encontrados nos JS (intel passivo)
 └── raw/
-    ├── js_urls.txt            ← JS files coletados in-scope
-    ├── endpoints_raw.jsonl    ← endpoints antes do scoring
-    ├── secrets.jsonl          ← findings do trufflehog
-    └── dom_sinks.jsonl        ← usos de DOM sinks perigosos
+    ├── js_urls.txt
+    ├── endpoints_raw.jsonl
+    ├── secrets.jsonl
+    └── dom_sinks.jsonl
 ```
 
-### Como interpretar o report.md
+### Scoring model
 
 | Tier | Score | Critério |
 |---|---|---|
-| **CRITICAL** | ≥ 5 | Múltiplos indicadores: padrão HIGH + método mutante (DELETE/PUT/PATCH) + aparece em 2+ JS files |
-| **HIGH** | ≥ 3 | Padrão de IDOR/BAC de alto risco ou método mutante isolado |
-| **MEDIUM** | ≥ 1 | Padrão de risco moderado |
+| **CRITICAL** | ≥ 5 | Múltiplos indicadores: padrão HIGH + método mutante + 2+ JS files |
+| **HIGH** | ≥ 3 | Padrão IDOR/BAC de alto risco ou método mutante isolado |
+| **MEDIUM** | ≥ 1 | Padrão de risco moderado, endpoint REST/API ou rota sensível |
 | **LOW** | 0 | Sem indicadores — incluso no JSON, omitido do report principal |
 
-Os findings são **ponto de partida para análise manual** — confirme no Burp Suite antes de reportar.
-
 ---
 
-## Exemplos completos
+## Configurando um programa
 
-```bash
-# Lab — Juice Shop modo agressivo
-docker compose -f docker/docker-compose.dev.yml run --rm js-hunter \
-  --target juice-shop:3000 --mode aggressive --no-scope-check
+Edite `targets/programs/meu-programa/scope.yml`:
 
-# Programa com enum de subdomínios
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --program meu-programa --mode moderate --enumerate-subs
+```yaml
+program: "Nome do Programa"
+platform: "HackerOne"   # HackerOne | BugCrowd | Intigriti | YesWeHack | Private
+handle: "meu-programa"
 
-# Autenticado com cookie + modo agressivo
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target app.exemplo.com --mode aggressive \
-  --cookie "session=abc123; csrf=xyz"
+in_scope:
+  domains:
+    - "*.exemplo.com"
+    - "exemplo.com"
 
-# Passivo — zero contato com o alvo
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --target exemplo.com --mode passive
+out_of_scope:
+  domains:
+    - "blog.exemplo.com"
+  paths:
+    - "/wp-admin/*"
 
-# Programa com autenticação Bearer
-docker compose -f docker/docker-compose.yml run --rm js-hunter \
-  --program meu-programa --mode moderate \
-  --header "Authorization: Bearer eyJ..."
+metadata:
+  last_updated: "2026-04-27"
+  max_severity: "Critical"
+  safe_harbor: true
 ```
 
+O scope guard valida todas as URLs coletadas antes de qualquer requisição ativa. URLs fora do scope vão para `out_of_scope_refs.txt` como intel passivo.
+
 ---
 
-## Arquitetura do pipeline
+## Pipeline
 
 ```
 Fase 0  DISCOVER   subfinder + httpx       → enumera subdomínios (--enumerate-subs)
 Fase 1  COLLECT    katana + gau + wayback  → coleta URLs de .js files
-Fase 2  EXTRACT    LinkFinder + trufflehog → extrai endpoints e secrets
+Fase 2  EXTRACT    LinkFinder + trufflehog → extrai endpoints, hardcoded URLs e secrets
 Fase 3  CLASSIFY   scoring model Python    → prioriza por risco IDOR/BAC
 Fase 4  REPORT     Jinja2                  → report.md + findings.json + burp_import.txt
-```
-
-### Scoring model (Fase 3)
-
-```
-Pattern HIGH match          → +3 pts
-Pattern MEDIUM match        → +1 pt
-Método DELETE/PUT/PATCH     → +2 pts
-Aparece em 2+ JS files      → +1 pt (confiança)
-Secret verificado           → CRITICAL direto
-Secret não verificado       → HIGH direto
-```
-
----
-
-## Estrutura do projeto
-
-```
-js-hunter/
-├── docker/
-│   ├── Dockerfile              ← imagem multi-stage (~todos os tools compilados)
-│   ├── docker-compose.yml      ← uso com alvos reais
-│   └── docker-compose.dev.yml  ← lab com Juice Shop integrado
-├── targets/
-│   └── programs/
-│       └── _template/
-│           └── scope.yml       ← copie para criar um novo programa
-├── .claude/skills/js-hunter/
-│   ├── scripts/
-│   │   ├── run.sh              ← entry point do container
-│   │   ├── 00_discover.sh      ← Fase 0: enumeração de subdomínios
-│   │   ├── 01_collect.sh       ← Fase 1: coleta de JS URLs
-│   │   ├── 02_extract.py       ← Fase 2: extração de endpoints e secrets
-│   │   ├── 03_classify.py      ← Fase 3: scoring e classificação por risco
-│   │   ├── 04_report.py        ← Fase 4: geração dos relatórios
-│   │   └── scope_guard.py      ← validador de scope
-│   ├── regex/
-│   │   ├── idor_patterns.json  ← padrões regex para IDOR
-│   │   ├── bac_patterns.json   ← padrões regex para BAC
-│   │   ├── secret_patterns.json
-│   │   └── dom_sinks.json      ← DOM sinks perigosos
-│   └── templates/
-│       └── report.md.j2        ← template Jinja2 do relatório
-├── output/                     ← resultados (gitignored)
-└── .gitignore
-```
-
----
-
-## Segurança — o que NÃO vai para o GitHub
-
-O `.gitignore` já bloqueia:
-
-| O que | Por quê |
-|---|---|
-| `output/` | Resultados de recon com dados de alvos reais |
-| `targets/programs/*/` | Seus scopes reais (apenas `_template` é público) |
-| `.env`, `*.cookie`, `*.token` | Credenciais e sessões |
-
-**Nunca passe cookies ou tokens como argumento em terminais compartilhados.** Use variáveis de ambiente:
-
-```bash
-export COOKIE="session=abc123"
-docker compose -f docker/docker-compose.yml run --rm \
-  -e COOKIE js-hunter --target app.exemplo.com
 ```
 
 ---
 
 ## Troubleshooting
 
-| Problema | Causa provável | Solução |
-|---|---|---|
-| `0 JS URLs coletadas` | Alvo não acessível ou JS dinâmico demais | Tente `--mode aggressive` (usa Chromium headless) |
-| `katana: not found` | Imagem desatualizada | `docker compose build --no-cache` |
-| `scope.yml not found` | Programa não configurado | Copie e edite `targets/programs/_template/` |
-| Cookie expirado | JWT/session com TTL | Faça login novamente e copie o novo cookie |
-| `0 resultados` no Juice Shop | Juice Shop não está rodando | `docker compose -f docker/docker-compose.dev.yml up juice-shop -d` |
-
----
-
-## Subindo no GitHub
-
-### Primeira vez
-
-```bash
-# 1. Inicializa o git na pasta do projeto
-git init
-git add .
-
-# Confirme que output/ e targets/programs/*/ NÃO aparecem no status
-git status
-
-# 2. Commit inicial
-git commit -m "feat: js-hunter v1.0 — JS recon pipeline for IDOR/BAC bug bounty"
-
-# 3. Cria o repositório público e faz o push (requer gh CLI instalado)
-gh repo create serros404/js-hunter --public --source=. --remote=origin --push
-```
-
-**Sem o `gh` CLI:** crie o repositório em [github.com/new](https://github.com/new) com o nome `js-hunter`, depois:
-
-```bash
-git remote add origin https://github.com/serros404/js-hunter.git
-git branch -M main
-git push -u origin main
-```
-
-### Atualizações futuras
-
-```bash
-git add .
-git commit -m "descrição da mudança"
-git push
-```
-
-### O que o .gitignore já protege
-
-| Bloqueado | Por quê |
+| Problema | Solução |
 |---|---|
-| `output/` | Resultados de recon com dados de alvos reais |
-| `targets/programs/*/` | Seus scopes reais (só o `_template` é público) |
-| `.env`, `*.cookie`, `*.token` | Credenciais e sessões |
-| `.claude/settings.local.json` | Configuração local do Claude Code |
+| `0 JS URLs coletadas` | Tente `--mode aggressive` (usa Chromium headless) |
+| `katana: not found` | `docker compose build --no-cache` |
+| `scope.yml not found` | Copie e edite `targets/programs/_template/` |
+| Cookie expirado | Faça login novamente e copie o novo cookie |
+| Juice Shop não responde | `docker compose -f docker/docker-compose.dev.yml up juice-shop -d` |
 
 ---
 
 ## Licença
 
-MIT — livre para uso pessoal e entre amigos. Não use contra sistemas sem autorização explícita.
+MIT — livre para uso pessoal e profissional em programas de bug bounty autorizados.
