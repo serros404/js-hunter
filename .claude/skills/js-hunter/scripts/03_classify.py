@@ -25,6 +25,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import urlparse
 
 RAW_DIR    = Path(os.environ["RAW_DIR"])
 OUTPUT_DIR = Path(os.environ["OUTPUT_DIR"])
@@ -50,6 +51,19 @@ MUTATING_METHODS = re.compile(
     r'type\s*:\s*["\'](?:DELETE|PUT|PATCH)["\']',
     re.IGNORECASE
 )
+# Endpoints REST reais sem ID — merecem ser MEDIUM (superfície de BAC/IDOR a verificar)
+REST_API_PATH = re.compile(
+    r'^/?(api|rest|v\d+|graphql)/\w',
+    re.IGNORECASE
+)
+# Rotas de app com superfície BAC/IDOR mesmo sem padrão de ID explícito
+SENSITIVE_ROUTE = re.compile(
+    r"/(data-?export|file-?upload|order[s-]|payment|orders?"
+    r"|forgot-?password|reset-?password|change-?password"
+    r"|privacy|erasure|deluxe|wallet|score-?board"
+    r"|admin|accounting|snippets)(/|$)",
+    re.IGNORECASE
+)
 
 
 def score_endpoint(ep: dict, source_count: dict[str, int]) -> dict:
@@ -59,8 +73,9 @@ def score_endpoint(ep: dict, source_count: dict[str, int]) -> dict:
     score    = 0
     matches  = []
 
-    # Já vem com pattern_name do regex direto?
-    if ep.get("pattern_name"):
+    # Hardcoded strings são re-scoreadas pelos padrões IDOR/BAC sobre o conteúdo da URL,
+    # não pelo pattern_name genérico (que seria sempre INFO/score=1 independente do path)
+    if ep.get("pattern_name") and ep.get("matched_by") != "hardcoded_string":
         base_score = 3 if ep.get("risk") == "HIGH" else 1
         score += base_score
         matches.append({
@@ -69,7 +84,7 @@ def score_endpoint(ep: dict, source_count: dict[str, int]) -> dict:
             "reason": ep.get("reason", "")
         })
     else:
-        # Aplica todos os patterns sobre a string do endpoint
+        # Aplica todos os patterns sobre a string do endpoint (LinkFinder + hardcoded)
         for name, spec in {**IDOR_PATTERNS, **BAC_PATTERNS}.items():
             try:
                 if re.search(spec["pattern"], endpoint, re.IGNORECASE):
@@ -88,6 +103,17 @@ def score_endpoint(ep: dict, source_count: dict[str, int]) -> dict:
         score += 2
         matches.append({"pattern": "mutating_method", "risk": "HIGH",
                          "reason": "DELETE/PUT/PATCH method identified"})
+
+    # Endpoints REST e rotas sensíveis sem ID ainda merecem MEDIUM
+    path_part = urlparse(endpoint).path if endpoint.startswith("http") else endpoint
+    if score == 0 and REST_API_PATH.match(path_part.lstrip("/")):
+        score += 1
+        matches.append({"pattern": "rest_api_surface", "risk": "MEDIUM",
+                         "reason": "REST/API endpoint — verificar autenticação e autorização"})
+    elif score == 0 and SENSITIVE_ROUTE.search(path_part):
+        score += 1
+        matches.append({"pattern": "sensitive_route", "risk": "MEDIUM",
+                         "reason": "Rota sensível — export/upload/payment/admin merecem verificação de authz"})
 
     # Bônus por aparecer em múltiplos JS files
     if source_count.get(endpoint, 0) >= 2:

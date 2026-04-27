@@ -22,6 +22,47 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# URLs em string literals — o que o DevTools mostra ao filtrar por http/https/localhost
+# \x22=" \x27=' \x60=`
+_RE_URL_STRING = re.compile(
+    r"[\x22\x27\x60](https?://[^\x22\x27\x60\s<>{}|\\^\[\]]{8,})[\x22\x27\x60]",
+    re.IGNORECASE,
+)
+_RE_LOCALHOST_STRING = re.compile(
+    r"[\x22\x27\x60]((localhost|127\.0\.0\.1)(:\d+)?/[^\x22\x27\x60\s<>]{3,})[\x22\x27\x60]",
+    re.IGNORECASE,
+)
+# Caminhos relativos em string literals que parecem chamadas de API (não assets de framework)
+_RE_API_PATH_STRING = re.compile(
+    r"[\x22\x27\x60](/(?:api|rest|v\d+|graphql|internal|admin|private|auth|oauth|"
+    r"user|account|order|payment|checkout|search|upload|export|import|"
+    r"webhook|notification|session|token|refresh|profile|settings|config)"
+    r"(?:/[^\x22\x27\x60\s<>{}|\\\^\[\]]{0,120})?)[\x22\x27\x60]",
+    re.IGNORECASE,
+)
+
+_NOISE_EXTENSIONS = frozenset({
+    ".js", ".ts", ".tsx", ".jsx", ".css", ".scss", ".sass", ".less",
+    ".map", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    ".html", ".htm",
+})
+_RE_NOISE = re.compile(
+    r"(__webpack|hot-update|\.spec\.|"
+    r"@angular|@ngrx|@ngx|NzModule|"
+    r"node_modules|dist/|\.bundle\.|"
+    r"\.(component|module|pipe|directive|guard|resolver|interceptor|service)\b)",
+    re.IGNORECASE,
+)
+# Paths que são MIME types — cobre qualquer tipo/subtipo incluindo x-* variants do CodeMirror
+_RE_MIME_PATH = re.compile(
+    r"^/?(application|text|image|audio|video|multipart|font|xml|message|script|zz-application)/",
+    re.IGNORECASE,
+)
+# Paths que são apenas números ou formatos de data
+_RE_NUMERIC_PATH = re.compile(r"^/?\d+/?$")
+_RE_DATE_PATH    = re.compile(r"^/?[A-Za-z]/[a-z]/[a-z]+/?$")
+
 sys.path.insert(0, "/app/scripts")
 from scope_guard import ScopeGuard
 
@@ -32,6 +73,25 @@ NO_SCOPE     = os.environ.get("NO_SCOPE_CHECK", "false").lower() == "true"
 SCOPE_FILE   = os.environ.get("SCOPE_FILE", "")
 COOKIE       = os.environ.get("COOKIE", "")
 AUTH_HEADER  = os.environ.get("AUTH_HEADER", "")
+TARGET       = os.environ.get("TARGET", "")
+
+# Prefixos do target para normalização no dedup (ex: http://juice-shop:3000)
+_TARGET_PREFIXES: list[str] = []
+if TARGET:
+    for scheme in ("https://", "http://"):
+        _TARGET_PREFIXES.append(f"{scheme}{TARGET}")
+        _TARGET_PREFIXES.append(f"{scheme}{TARGET}/")
+
+
+def normalize_endpoint(ep: str) -> str:
+    """Remove o base URL do target para comparação de dedup.
+    'http://juice-shop:3000/api/users' → '/api/users'
+    """
+    for prefix in _TARGET_PREFIXES:
+        if ep.startswith(prefix):
+            rest = ep[len(prefix.rstrip("/")):]
+            return rest if rest.startswith("/") else "/" + rest
+    return ep
 
 JS_URLS_FILE = RAW_DIR / "js_urls.txt"
 ENDPOINTS_FILE = RAW_DIR / "endpoints_raw.jsonl"
@@ -124,6 +184,71 @@ def extract_endpoints_regex(js_content: str, base_url: str) -> list[dict]:
     return results
 
 
+def extract_hardcoded_urls(js_content: str, base_url: str) -> list[dict]:
+    """
+    Extrai URLs e paths hardcoded em string literals do JS.
+    Replica o que o DevTools mostra ao filtrar por http/https/localhost no Network/Sources.
+    """
+    seen: set[str] = set()
+    results = []
+
+    def add(url: str, method: str) -> None:
+        url = url.strip().rstrip("?&#")
+        if url in seen or len(url) < 4:
+            return
+        seen.add(url)
+        results.append({
+            "endpoint": url,
+            "source_js": base_url,
+            "pattern_name": method,
+            "risk": "INFO",
+            "reason": "URL/path hardcoded em string literal no JS",
+            "matched_by": "hardcoded_string",
+        })
+
+    for m in _RE_URL_STRING.finditer(js_content):
+        add(m.group(1), "hardcoded_http_url")
+
+    for m in _RE_LOCALHOST_STRING.finditer(js_content):
+        add(m.group(1), "hardcoded_localhost")
+
+    for m in _RE_API_PATH_STRING.finditer(js_content):
+        add(m.group(1), "hardcoded_api_path")
+
+    return results
+
+
+def is_noise_endpoint(endpoint: str) -> bool:
+    """Retorna True para endpoints que são ruído de framework/bundler, não superfícies reais."""
+    parsed = urlparse(endpoint) if endpoint.startswith("http") else None
+    path = parsed.path if parsed else endpoint
+
+    # Fragment-only (Angular SPA routes: /#/page) — não são API endpoints
+    if parsed and parsed.fragment and not parsed.path.strip("/"):
+        return True
+
+    # Sem nenhuma barra = provavelmente identificador JS, não endpoint
+    if "/" not in path:
+        return True
+
+    ext = Path(path.split("?")[0]).suffix.lower()
+    if ext in _NOISE_EXTENSIONS:
+        return True
+    if _RE_NOISE.search(endpoint):
+        return True
+
+    # MIME types mascarados como paths
+    path_only = path.lstrip("/")
+    if _RE_MIME_PATH.match(path_only) or _RE_MIME_PATH.match(path):
+        return True
+
+    # Paths puramente numéricos (/10, /40, /160) ou formatos de data (/M/d/yy)
+    if _RE_NUMERIC_PATH.match(path) or _RE_DATE_PATH.match(path):
+        return True
+
+    return False
+
+
 def extract_dom_sinks(js_content: str, base_url: str) -> list[dict]:
     """Detecta uso de DOM sinks perigosos no conteúdo JS."""
     results = []
@@ -197,13 +322,18 @@ def process_js_url(url: str) -> dict:
     is_minified = any(len(line) > 500 for line in content.splitlines()[:10])
     result["minified"] = is_minified
 
-    # Endpoints via LinkFinder
-    lf_endpoints = extract_endpoints_linkfinder(content, url)
-    # Endpoints via regex direta
+    # Endpoints via LinkFinder (com filtro de ruído de framework/bundler)
+    lf_endpoints = [
+        ep for ep in extract_endpoints_linkfinder(content, url)
+        if not is_noise_endpoint(ep.get("endpoint", ""))
+    ]
+    # Endpoints via regex direta (IDOR/BAC patterns)
     rx_endpoints = extract_endpoints_regex(content, url)
+    # URLs hardcoded em string literals (replica filtro DevTools http/https/localhost)
+    hc_endpoints = extract_hardcoded_urls(content, url)
 
     # Separa in-scope vs out-of-scope refs
-    all_endpoints = lf_endpoints + rx_endpoints
+    all_endpoints = lf_endpoints + rx_endpoints + hc_endpoints
     for ep in all_endpoints:
         endpoint_url = ep.get("endpoint", "")
         if not endpoint_url.startswith("http"):
@@ -249,11 +379,11 @@ def main():
             all_oos_refs.update(result["oos_refs"])
             all_sinks.extend(result["dom_sinks"])
 
-    # Dedup de endpoints por URL
-    seen = set()
+    # Dedup normalizado: http://target:3000/path e /path são tratados como o mesmo endpoint
+    seen: set[str] = set()
     deduped = []
     for ep in all_endpoints:
-        key = ep.get("endpoint", "")
+        key = normalize_endpoint(ep.get("endpoint", ""))
         if key not in seen:
             seen.add(key)
             deduped.append(ep)
