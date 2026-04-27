@@ -38,9 +38,9 @@ fi
 touch "$JS_RAW"
 
 # ── Monta flags de autenticação ───────────────────────────────────────────────
-AUTH_FLAGS=""
-[[ -n "${COOKIE:-}" ]]      && AUTH_FLAGS="$AUTH_FLAGS -H 'Cookie: $COOKIE'"
-[[ -n "${AUTH_HEADER:-}" ]] && AUTH_FLAGS="$AUTH_FLAGS -H '$AUTH_HEADER'"
+AUTH_FLAGS=()
+[[ -n "${COOKIE:-}" ]]      && AUTH_FLAGS+=(-H "Cookie: ${COOKIE}")
+[[ -n "${AUTH_HEADER:-}" ]] && AUTH_FLAGS+=(-H "${AUTH_HEADER}")
 
 # ── Modo passive: só fontes históricas, não toca o alvo ──────────────────────
 if [[ "$MODE" == "passive" ]]; then
@@ -69,7 +69,7 @@ elif [[ "$MODE" == "moderate" ]]; then
       -rl 10 \
       -silent \
       -o /tmp/katana_tmp.txt \
-      ${AUTH_FLAGS:+$AUTH_FLAGS} \
+      "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
       2>/dev/null || true
     grep -iE '\.js(\?|$)' /tmp/katana_tmp.txt >> "$JS_RAW" 2>/dev/null || true
 
@@ -95,7 +95,7 @@ elif [[ "$MODE" == "aggressive" ]]; then
       -system-chrome \
       -silent \
       -o /tmp/katana_tmp.txt \
-      ${AUTH_FLAGS:+$AUTH_FLAGS} \
+      "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
       2>/dev/null || true
     grep -iE '\.js(\?|$)' /tmp/katana_tmp.txt >> "$JS_RAW" 2>/dev/null || true
 

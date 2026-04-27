@@ -84,7 +84,7 @@ docker compose -f docker/docker-compose.dev.yml up juice-shop -d
 
 # Roda o js-hunter
 docker compose -f docker/docker-compose.dev.yml run --rm js-hunter \
-  --target localhost:3000 \
+  --target juice-shop:3000 \
   --mode moderate \
   --no-scope-check
 ```
@@ -123,4 +123,4 @@ docker compose -f docker/docker-compose.dev.yml run --rm js-hunter \
 | "js-hunter no exemplo.com modo passivo" | `--target exemplo.com --mode passive` |
 | "roda agressivo com enum de subs no bugcrowd-acme" | `--program bugcrowd-acme --mode aggressive --enumerate-subs` |
 | "js-hunter autenticado, cookie session=abc" | adiciona `--cookie "session=abc"` |
-| "testa no juice shop" | usa docker-compose.dev.yml com `--target localhost:3000 --no-scope-check` |
+| "testa no juice shop" | usa docker-compose.dev.yml com `--target juice-shop:3000 --no-scope-check` |

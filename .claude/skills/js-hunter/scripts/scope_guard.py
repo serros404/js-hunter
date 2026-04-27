@@ -7,7 +7,7 @@ from __future__ import annotations
 import fnmatch
 import re
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 try:
     import yaml
@@ -43,7 +43,7 @@ class ScopeGuard:
             return True, "no_scope_check"
 
         domain = _extract_domain(url)
-        path   = urlparse(url if "://" in url else f"http://{url}").path or "/"
+        path   = unquote(urlparse(url if "://" in url else f"http://{url}").path or "/")
 
         in_scope_domains  = self._scope.get("in_scope",  {}).get("domains", [])
         out_scope_domains = self._scope.get("out_of_scope", {}).get("domains", [])

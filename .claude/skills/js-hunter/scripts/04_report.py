@@ -12,6 +12,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urljoin
 
 try:
     from jinja2 import Environment, FileSystemLoader
@@ -50,15 +51,19 @@ print(f"  [report] report.md → {REPORT_FILE}")
 
 # ── burp_import.txt ───────────────────────────────────────────────────────────
 # Todas as URLs únicas com score > 0 (CRITICAL + HIGH + MEDIUM)
+# Paths relativos são resolvidos contra o target para chegar ao Burp completos.
+_target = os.environ.get("TARGET", "")
+_base_url = f"http://{_target}" if _target and not _target.startswith("http") else _target
+
 urls = set()
 for tier in ("critical", "high", "medium"):
     for ep in findings["endpoints"].get(tier, []):
         url = ep.get("endpoint", "")
         if url.startswith("http"):
             urls.add(url)
+        elif url.startswith("/") and _base_url:
+            urls.add(urljoin(_base_url, url))
 
-# Adiciona também as JS source URLs (para o Burp ver o contexto)
-oos_file = OUTPUT_DIR / "out_of_scope_refs.txt"
 # (não inclui out-of-scope refs no burp_import — jamais tocar ativamente)
 
 BURP_FILE.write_text("\n".join(sorted(urls)) + "\n")

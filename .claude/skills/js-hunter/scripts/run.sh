@@ -40,6 +40,19 @@ while [[ $# -gt 0 ]]; do
     --no-scope-check)  NO_SCOPE_CHECK="true"; shift ;;
     --cookie)          COOKIE="$2"; shift 2 ;;
     --header)          AUTH_HEADER="$2"; shift 2 ;;
+    --help|-h)
+      echo "Usage: run.sh [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --target <domain|IP>     Target to scan (e.g. app.example.com)"
+      echo "  --program <name>         Bug bounty program (reads targets/programs/<name>/scope.yml)"
+      echo "  --mode <mode>            passive | moderate (default) | aggressive"
+      echo "  --enumerate-subs         Enumerate subdomains (requires --program)"
+      echo "  --no-scope-check         Disable scope guard (lab use only)"
+      echo "  --cookie <value>         Session cookie to include in requests"
+      echo "  --header <Key: Value>    Auth header to include in requests (e.g. 'Authorization: Bearer TOKEN')"
+      echo "  --help, -h               Show this help message"
+      exit 0 ;;
     *) err "Flag desconhecida: $1" ;;
   esac
 done

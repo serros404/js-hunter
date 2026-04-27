@@ -66,6 +66,22 @@ _RE_DATE_PATH    = re.compile(r"^/?[A-Za-z]/[a-z]/[a-z]+/?$")
 sys.path.insert(0, "/app/scripts")
 from scope_guard import ScopeGuard
 
+_BLOCKED_HOSTS = frozenset({
+    "169.254.169.254",  # cloud metadata (AWS, GCP, Azure)
+    "100.100.100.200",  # Alibaba Cloud metadata
+    "127.0.0.1",
+    "localhost",
+    "::1",
+})
+
+
+def _is_safe_url(url: str) -> bool:
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return True
+    return host.lower() not in _BLOCKED_HOSTS
+
 RAW_DIR      = Path(os.environ["RAW_DIR"])
 REGEX_DIR    = Path(os.environ["REGEX_DIR"])
 OUTPUT_DIR   = Path(os.environ["OUTPUT_DIR"])
@@ -119,6 +135,8 @@ def is_third_party(url: str) -> bool:
 
 def fetch_js(url: str) -> str | None:
     """Baixa conteúdo de um JS file. Retorna None em caso de erro."""
+    if not _is_safe_url(url):
+        return None
     try:
         req = urllib.request.Request(url)
         req.add_header("User-Agent", "Mozilla/5.0 js-hunter/1.0")

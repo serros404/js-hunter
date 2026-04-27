@@ -53,5 +53,10 @@
     "pattern": "/(?:api-?keys?|tokens?|secrets?|credentials?)/(?:create|generate|list|revoke|rotate)",
     "risk": "MEDIUM",
     "reason": "Credential management endpoint — authz critical"
+  },
+  "me_endpoint": {
+    "pattern": "/(?:api/)?(?:v\\d+/)?(?:users?/)?me(?:/|$|\\?)",
+    "risk": "HIGH",
+    "reason": "/me endpoint returns authenticated user data — test with another user's token for BAC"
   }
 }

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Command injection fix** (`01_collect.sh`) — `AUTH_FLAGS` convertido de string para array bash; `$COOKIE` e `$AUTH_HEADER` não são mais interpolados diretamente em strings, eliminando possibilidade de injeção de comandos via valores de cookie/header
+- **SSRF mitigation** (`02_extract.py`) — adicionada `_is_safe_url()` que bloqueia requisições para IPs de cloud metadata (`169.254.169.254`, `100.100.100.200`) e loopback (`127.0.0.1`, `localhost`, `::1`); RFC1918 deliberadamente não bloqueado para não quebrar testes em redes internas
+- **Scope bypass via URL encoding** (`scope_guard.py`) — `path` agora é URL-decoded (`unquote()`) antes da comparação com `out_of_scope.paths`, evitando que `%2f` bypass o scope check
+
+### Added
+- **`--help` / `-h`** (`run.sh`) — flag de help agora imprime todas as opções e sai com código 0; antes retornava `[ERROR] Flag desconhecida`
+- **Pattern `/me` em `bac_patterns.json`** — detecta `/api/v1/users/me` e variantes; endpoint clássico de BAC quando testado com token de outro usuário
+- **`dangerouslySetInnerHTML` em `dom_sinks.json`** — sink React de XSS ausente da lista; agora coberto na categoria `direct_html_write`
+
+### Fixed
+- **`burp_import.txt` agora inclui paths relativos** (`04_report.py`) — endpoints como `/admin/` e `/api/users` são resolvidos contra `http://<TARGET>` antes de escrever no arquivo; anteriormente o filtro `startswith("http")` os excluía silenciosamente
+- **FP em `base64_id_param`** (`idor_patterns.json`) — pattern anterior aceitava qualquer string alfanumérica de 16+ chars (ex: `nftMintChallenge`); novo pattern exige presença de `=` (padding) ou `+`/`/` (chars reais de base64)
+- **Hostname errado no exemplo Juice Shop** (`SKILL.md`) — `localhost:3000` corrigido para `juice-shop:3000` no contexto Docker (o container não resolve `localhost` para o serviço juice-shop na rede Docker)
+
 ---
 
 ## [1.1.0] - 2026-04-27

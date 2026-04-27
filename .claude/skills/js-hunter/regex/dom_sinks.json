@@ -3,6 +3,7 @@
     "innerHTML",
     "outerHTML",
     "insertAdjacentHTML",
+    "dangerouslySetInnerHTML",
     "document.write(",
     "document.writeln("
   ],
